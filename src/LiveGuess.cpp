@@ -275,3 +275,52 @@ std::auto_ptr< std::vector<LiveGuessResult> > LiveGuess::Predict( char * str, in
   return returnValues;
                                                                           
 }
+
+double LiveGuess::OneProbability(char * str) {
+  vector<char *> words(0);
+  int len = strlen(str) + 1;
+  char strSpace[len];
+  strcpy( strSpace, str);
+  char * p = strSpace;
+  // parse words
+  while (*p != '\0') {
+    while (isspace(*p)) ++p;  // Skip consecutive spaces.
+    char *token = p;
+    while (*p != 0 && !isspace(*p))  ++p;
+    size_t len = p - token;
+    if (*p != 0) *p++ = 0;
+    words.push_back( token );
+  }
+  const Vocab & vocab = _lm.vocab();
+  vector<char *> ourWords(words); // clone it
+  
+  
+  // warning: words is mutated temporarily
+  VocabIndex vwords[ ourWords.size() ];
+  for (int i = 0; i < ourWords.size(); i++) {
+      vwords[i] = vocab.Find( ourWords[i] );
+  }
+//   for (int i = 0; i < _order; i++) {
+//     int j = ourWords.size() - _order + i;
+//     if (j < 0) {
+//       vwords[i] = Vocab::EndOfSentence; // probably should be end of sentence
+//     } else {
+//       vwords[i] = vocab.Find( ourWords[j] );
+//     }
+//   }
+  
+  const ProbVector & probabilities = _lm.probs(  _order ) ;// _order - 2  );
+  const CountVector & counts = _lm.counts( _order );
+  NgramIndex newIndex = _lm.model()._Find( vwords, _order );
+  if (newIndex == -1) { // not legit :(
+    return (-1.0);
+  }
+  
+  Prob probRaw = probabilities[ newIndex ];
+  
+  Prob prob = -1 * log( probRaw ); //biggest is smallest
+  
+  return probRaw;
+                                                                          
+}
+

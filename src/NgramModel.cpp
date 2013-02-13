@@ -488,10 +488,10 @@ NgramModel::LoadEvalCorpus(vector<CountVector> &probCountVectors,
     while (corpusFile.getLine( line, MAXLINE)) {
         if (strncmp(line, "<DOC ", 5) == 0 || strcmp(line, "</DOC>") == 0)
             continue;
-
+// 	Logger::Log(0, "Additional Input:%s\n", line);
         // Lookup vocabulary indices for each word in the line.
         words.clear();
-        words.push_back(Vocab::EndOfSentence);
+//         words.push_back(Vocab::EndOfSentence);
         char *p = &line[0];
         while (*p != 0) {
             while (isspace(*p)) ++p;  // Skip consecutive spaces.
@@ -501,7 +501,7 @@ NgramModel::LoadEvalCorpus(vector<CountVector> &probCountVectors,
             if (*p != 0) *p++ = 0;
             words.push_back(_vocab.Find(token, len));
         }
-        words.push_back(Vocab::EndOfSentence);
+//         words.push_back(Vocab::EndOfSentence);
 
         // Add each top order n-gram.
         size_t ngramOrder = std::min((size_t)2, size() - 1);

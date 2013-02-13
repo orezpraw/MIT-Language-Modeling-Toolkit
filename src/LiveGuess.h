@@ -43,6 +43,8 @@
 #include "Types.h"
 #include "Vocab.h"
 #include "NgramVector.h"
+#include "PerplexityOptimizer.h"
+
 
 using std::vector;
 
@@ -104,6 +106,7 @@ class LiveGuess {
    : _lm(lm), _order(order) { };
   
   std::auto_ptr< std::vector<LiveGuessResult> > Predict( char * str, int predictions );
+  double OneProbability( char * str);
   
 };
 

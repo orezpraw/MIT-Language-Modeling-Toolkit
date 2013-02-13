@@ -68,7 +68,10 @@ class FakeZFile : public ZFile {
     _file = NULL; // avoid closing it
   }
 
-  void ReOpen() { }
+  virtual void ReOpen() {
+    index = 0;
+    return;
+  }
   /* stupid hack */
   virtual operator FILE *() const { return (FILE*)-1; }
 

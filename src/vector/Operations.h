@@ -97,11 +97,11 @@ struct OpDiv {
 // Advanced Operations
 
 struct OpMin {
-    template <typename T> static T Eval(T a, T b) { return min(a, b); }
+    template <typename T> static T Eval(T a, T b) { return ((a) < (b) ? (a) : (b)); }
 };
 
 struct OpMax {
-    template <typename T> static T Eval(T a, T b) { return max(a, b); }
+    template <typename T> static T Eval(T a, T b) { return ((a) > (b) ? (a) : (b)); }
 };
 
 struct OpAbs {

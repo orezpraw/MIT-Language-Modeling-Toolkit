@@ -43,6 +43,8 @@
 
 
 #include "util/ZFile.h"
+#include "util/FakeZFile.h"
+
 
 
 
@@ -201,6 +203,52 @@ int liveMode(int order,  CommandOptions & opts) {
   return 0;
 }
 
+int liveProbMode(int order,  CommandOptions & opts) {
+  vector<double> perps;  
+  vector<double> logs;  
+  char buffer[BUFFERSIZE];
+  double p;
+  Logger::Log(1, "[LL] Loading eval set %s...\n", opts["text"]); // [i].c_str());
+  NgramLM lm(order);
+  lm.Initialize(opts["vocab"], AsBoolean(opts["unk"]), 
+                opts["text"], opts["counts"], 
+                opts["smoothing"], opts["weight-features"]);
+  Logger::Log(0, "Parameters:\n");
+  ParamVector params(lm.defParams());
+  lm.Estimate(params);
+
+
+  fflush(stdout);
+  // issue: how many entries to predict?
+  
+
+  Logger::Log(0, "Live Entropy Ready\n", p);\
+  fflush(stdout);    
+  while( getline( stdin, buffer, BUFFERSIZE ) ) {    
+    vector<char *> Zords;
+    PerplexityOptimizer perpEval(lm, order);
+    buffer[BUFFERSIZE-1] = '\0';
+    // dirtily break const correctness
+    Zords.push_back(buffer);
+//     Logger::Log(0, "Input:%s\n", buffer);
+    fflush(stdout);    
+    std::auto_ptr< ZFile> zfile( new FakeZFile( Zords ) );
+    p = perpEval.ShortCorpusComputeEntropy( * zfile, params);
+    Logger::Log(0, "Live Entropy %lf\n", p);\
+    fflush(stdout);    
+  }
+  // get command
+  // if command is add corpus
+  //  Make an N-Gram model based on the read in text 
+  //  extend the original n-gram model (extend) with the new model
+  // eval.addToCorpus( str );
+  // if command is estimate
+  // eval.estimate( str, nestimates);
+  // if command is exit
+  
+  return 0;
+}
+
 
 int main(int argc, char* argv[]) {
     // Parse command line options.
@@ -236,6 +284,7 @@ int main(int argc, char* argv[]) {
     opts.AddOption("rs,seed", "The random seed for srand", "0");
     opts.AddOption("repeat,repeat", "Repeat the calculation", "1");
     opts.AddOption("live,live", "Live Input Mode");
+    opts.AddOption("live-prob,live-prob", "Live Input Mode");
 
     if (!opts.ParseArguments(argc, (const char **)argv) ||
         opts["help"] != NULL) {
@@ -272,6 +321,9 @@ int main(int argc, char* argv[]) {
 
     if ( opts["live"] ) {
       return liveMode( order, opts );
+    }
+    if ( opts["live-prob"] ) {
+      return liveProbMode( order, opts );
     }
 
     // Build language model.

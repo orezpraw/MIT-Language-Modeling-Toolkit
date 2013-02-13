@@ -83,7 +83,7 @@ public:
     }
     ~ZFile() { if (_file) fclose(_file); }
     
-    void ReOpen() {
+    virtual void ReOpen() {
         const char *mode = _mode.c_str();
         if (endsWith(_filename.c_str(), ".gz")) {
             _file = (_mode[0] == 'r') ?

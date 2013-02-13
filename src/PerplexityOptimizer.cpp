@@ -35,6 +35,9 @@
 #include <ctime>
 #include "util/Logger.h"
 #include "PerplexityOptimizer.h"
+#include "util/ZFile.h"
+#define MAXLINE 65535
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +57,126 @@ PerplexityOptimizer::LoadCorpus(ZFile &corpusFile) {
         bowMaskVectors[o] = (_bowCountVectors[o] > 0);
     _mask = _lm.GetMask(probMaskVectors, bowMaskVectors);
 }
+
+double
+PerplexityOptimizer::ShortCorpusComputeEntropy(ZFile &corpusFile, const ParamVector &params) {
+    if (corpusFile == NULL) throw std::invalid_argument("Invalid file");
+    size_t size = _lm._pModel->size();
+//     BitVector vocabMask(size, 1);
+    // Accumulate counts of prob/bow for computing perplexity of corpusFilename.
+    char                    line[MAXLINE];
+    size_t                  numOOV = 0;
+    vector<VocabIndex> words(256);
+    _totLogProb = 0.0;
+    _numZeroProbs = 0;
+    _numWords = 0;
+    while (corpusFile.getLine( line, MAXLINE)) {
+        if (strncmp(line, "<DOC ", 5) == 0 || strcmp(line, "</DOC>") == 0)
+            continue;
+//      Logger::Log(0, "Additional Input:%s\n", line);
+        // Lookup vocabulary indices for each word in the line.
+        words.clear();
+//         words.push_back(Vocab::EndOfSentence);
+        char *p = &line[0];
+        while (*p != 0) {
+            while (isspace(*p)) ++p;  // Skip consecutive spaces.
+            const char *token = p;
+            while (*p != 0 && !isspace(*p))  ++p;
+            size_t len = p - token;
+            if (*p != 0) *p++ = 0;
+            words.push_back(_lm.vocab().Find(token, len));
+        }
+//         words.push_back(Vocab::EndOfSentence);
+
+        // Add each top order n-gram.
+        size_t ngramOrder = std::min((size_t)2, size - 1);
+        for (size_t i = 1; i < words.size(); i++) {
+            if (words[i] == Vocab::Invalid) {
+                // OOV word encountered.  Reset order to unigrams.
+                ngramOrder = 1;
+                numOOV++;
+            } else {
+                NgramIndex index;
+                size_t     boOrder = ngramOrder;
+                while ((index = _lm._pModel->_Find(&words[i-boOrder+1], boOrder)) == -1) {
+                    --boOrder;
+                    NgramIndex hist = _lm._pModel->_Find(&words[i - boOrder], boOrder);
+                    if (hist != (NgramIndex)-1) {
+//                         _bowCountVectors[boOrder][hist]++;
+                        _totLogProb += log((_lm.bows(boOrder))[hist]) * 1;
+                    }
+                }
+                ngramOrder = std::min(ngramOrder + 1, size - 1);
+//                 _probCountVectors[boOrder][index]++;
+                if ((_lm.probs(boOrder))[index] == 0)
+                    _numZeroProbs++;
+                else
+                    _totLogProb += log((_lm.probs(boOrder))[index]) * 1;
+                _numWords++;
+            }
+        }
+    }
+    double entropy = -_totLogProb / (_numWords - _numZeroProbs);
+    if (Logger::GetVerbosity() > 2)
+        std::cout << exp(entropy) << "\t" << params << std::endl;
+    else
+        Logger::Log(2, "%f\n", exp(entropy));
+    return std::isnan(entropy) ? 7 : entropy;
+}
+
+bool
+PerplexityOptimizer::EstimateOnly(const ParamVector &params) {
+    // Estimate model.
+    return _lm.Estimate(params, _mask);
+}
+
+double
+PerplexityOptimizer::ComputeEntropyNoEstimate(const ParamVector &params) {
+
+    // Compute total log probability and num zero probs.
+    _totLogProb = 0.0;
+    _numZeroProbs = 0;
+    for (size_t o = 0; o <= _order; o++) { 
+        // assert(alltrue(counts == 0 || probs > 0));
+        // _totLogProb += dot(log(probs), counts, counts > 0);
+        // _totLogProb += sum((log(probs) * counts)[counts > 0]);
+        const CountVector &counts(_probCountVectors[o]);
+        const ProbVector & probs(_lm.probs(o));
+        for (size_t i = 0; i < counts.length(); i++) {
+            if (counts[i] > 0) {
+                assert(std::isfinite(probs[i]));
+                if (probs[i] == 0)
+                    _numZeroProbs++;
+                else
+                    _totLogProb += log(probs[i]) * counts[i];
+            }
+        }
+    }
+    for (size_t o = 0; o < _order; o++) {
+        // assert(allTrue(counts == 0 || bows > 0));
+        // _totLogProb += dot(log(bows), counts, counts > 0);
+        const CountVector &counts(_bowCountVectors[o]);
+        const ProbVector & bows(_lm.bows(o));
+        for (size_t i = 0; i < counts.length(); i++) {
+            if (counts[i] > 0) {
+                assert(std::isfinite(bows[i]));
+                assert(bows[i] != 0);
+                if (bows[i] == 0)
+                    Logger::Warn(1, "Invalid BOW %lu %lu %i\n", o,i,counts[i]);
+                _totLogProb += log(bows[i]) * counts[i];
+            }
+        }
+    }
+
+    double entropy = -_totLogProb / (_numWords - _numZeroProbs);
+//     double entropy = -_totLogProb / _numWords;
+    if (Logger::GetVerbosity() > 2)
+        std::cout << exp(entropy) << "\t" << params << std::endl;
+    else
+        Logger::Log(2, "%f\n", exp(entropy));
+    return std::isnan(entropy) ? 7 : entropy;
+}
+
 
 double
 PerplexityOptimizer::ComputeEntropy(const ParamVector &params) {

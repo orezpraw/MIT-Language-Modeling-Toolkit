@@ -66,7 +66,15 @@ protected:
 
 public:
     PerplexityOptimizer(NgramLMBase &lm, size_t order=3)
-        : _lm(lm), _order(order) { }
+        : _lm(lm), _order(order) { 
+	  _numOOV = 0;
+	  _numWords = 0;
+	  _numZeroProbs = 0;
+	  _numCalls = 0;
+	  _totLogProb = 0.0;
+	  _probCountVectors.clear();
+	  _bowCountVectors.clear();
+	}
 
     void   SetOrder(size_t order) { _order = order; }
     void   LoadCorpus(ZFile &corpusFile);
@@ -75,6 +83,9 @@ public:
     { return exp(ComputeEntropy(params)); }
     double Optimize(ParamVector &params,
                     Optimization technique=PowellOptimization);
+    bool EstimateOnly(const ParamVector &params);
+    double ComputeEntropyNoEstimate(const ParamVector &params);
+    double ShortCorpusComputeEntropy(ZFile &corpusFile, const ParamVector &params);
 };
 
 #endif // PERPLEXITYOPTIMIZER_H
