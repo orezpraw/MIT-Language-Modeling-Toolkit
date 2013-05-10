@@ -102,8 +102,10 @@ PerplexityOptimizer::ShortCorpusComputeEntropy(ZFile &corpusFile, const ParamVec
                     --boOrder;
                     NgramIndex hist = _lm._pModel->_Find(&words[i - boOrder], boOrder);
                     if (hist != (NgramIndex)-1) {
+                        if ((_lm.bows(boOrder))[hist] != 0) {
 //                         _bowCountVectors[boOrder][hist]++;
-                        _totLogProb += log((_lm.bows(boOrder))[hist]) * 1;
+                          _totLogProb += log((_lm.bows(boOrder))[hist]) * 1;
+                        }
                     }
                 }
                 ngramOrder = std::min(ngramOrder + 1, size - 1);
@@ -117,6 +119,7 @@ PerplexityOptimizer::ShortCorpusComputeEntropy(ZFile &corpusFile, const ParamVec
         }
     }
     double entropy = -_totLogProb / (_numWords - _numZeroProbs);
+    std::cout << -_totLogProb << "\t" << _numWords << "\t" << _numZeroProbs << std::endl;
     if (Logger::GetVerbosity() > 2)
         std::cout << exp(entropy) << "\t" << params << std::endl;
     else
