@@ -64,6 +64,8 @@
 #include "CrossFolder.h"
 #include "LiveGuess.h"
 
+#include <zmq.hpp>
+
 #define BUFFERSIZE 4096
 
 using std::vector;
@@ -222,21 +224,43 @@ int liveProbMode(int order,  CommandOptions & opts) {
   // issue: how many entries to predict?
   
 
-  Logger::Log(0, "Live Entropy Ready\n", p);\
-  fflush(stdout);    
-  while( getline( stdin, buffer, BUFFERSIZE ) ) {    
+  Logger::Log(0, "Live Entropy Ready\nStarting ZMQ\n", p);\
+  fflush(stdout);
+  
+  zmq::context_t ctx (1);
+  zmq::socket_t s (ctx, ZMQ_REP);
+  s.bind ("tcp://lo:32124");
+  
+  while(true) {
+    zmq::message_t request;
+    s.recv(&request);
     vector<char *> Zords;
     PerplexityOptimizer perpEval(lm, order);
-    buffer[BUFFERSIZE-1] = '\0';
-    // dirtily break const correctness
-    Zords.push_back(buffer);
-//     Logger::Log(0, "Input:%s\n", buffer);
-    fflush(stdout);    
+    std::string stringbuf((char*)(request.data()), request.size());
+    Zords.push_back(const_cast<char *>(stringbuf.c_str()));
     std::auto_ptr< ZFile> zfile( new FakeZFile( Zords ) );
-    p = perpEval.ShortCorpusComputeEntropy( * zfile, params);
-    Logger::Log(0, "Live Entropy %lf\n", p);\
-    fflush(stdout);    
+    p = perpEval.ShortCorpusComputeEntropy(* zfile, params);
+    Logger::Log(0, "Live Entropy %lf\n", p);
+    
+    zmq::message_t response(100);
+    snprintf((char*)(response.data()), 100, "%lf", p);
+    s.send(response);
+    
+    fflush(stdout);
   }
+//   while( getline( stdin, buffer, BUFFERSIZE ) ) {    
+//     vector<char *> Zords;
+//     PerplexityOptimizer perpEval(lm, order);
+//     buffer[BUFFERSIZE-1] = '\0';
+//     // dirtily break const correctness
+//     Zords.push_back(buffer);
+// //     Logger::Log(0, "Input:%s\n", buffer);
+//     fflush(stdout);    
+//     std::auto_ptr< ZFile> zfile( new FakeZFile( Zords ) );
+//     p = perpEval.ShortCorpusComputeEntropy( * zfile, params);
+//     Logger::Log(0, "Live Entropy %lf\n", p);\
+//     fflush(stdout);    
+//   }
   // get command
   // if command is add corpus
   //  Make an N-Gram model based on the read in text 
