@@ -136,7 +136,6 @@ KneserNeySmoothing::Estimate(const ParamVector &params,
                              const NgramLMMask *pMask,
                              ProbVector &probs,
                              ProbVector &bows) {
-
     // Unpack discount parameters.
     if (_tuneParams) {
         // Check of out-of-bounds discount parameters.

@@ -208,7 +208,7 @@ int liveMode(int order,  CommandOptions & opts) {
 int liveProbMode(int order,  CommandOptions & opts) {
   vector<double> perps;  
   vector<double> logs;  
-  char buffer[BUFFERSIZE];
+//   char buffer[BUFFERSIZE];
   double p;
   Logger::Log(1, "[LL] Loading eval set %s...\n", opts["text"]); // [i].c_str());
   NgramLM lm(order);
@@ -224,12 +224,13 @@ int liveProbMode(int order,  CommandOptions & opts) {
   // issue: how many entries to predict?
   
 
-  Logger::Log(0, "Live Entropy Ready\nStarting ZMQ\n", p);\
-  fflush(stdout);
-  
+  Logger::Log(0, "Starting ZMQ\n", p);\
   zmq::context_t ctx (1);
   zmq::socket_t s (ctx, ZMQ_REP);
-  s.bind ("tcp://lo:32124");
+  s.bind(opts["live-prob"]);
+  
+  Logger::Log(0, "Live Entropy Ready\n", p);\
+  fflush(stdout);
   
   while(true) {
     zmq::message_t request;
@@ -237,13 +238,19 @@ int liveProbMode(int order,  CommandOptions & opts) {
     vector<char *> Zords;
     PerplexityOptimizer perpEval(lm, order);
     std::string stringbuf((char*)(request.data()), request.size());
-    Zords.push_back(const_cast<char *>(stringbuf.c_str()));
+    char * buffer = new char[request.size()+1];
+    memcpy(buffer, request.data(), request.size());
+    buffer[request.size()] = '\0';
+    Logger::Log(0, "Input:%s\n", buffer);
+    Zords.push_back(buffer);
     std::auto_ptr< ZFile> zfile( new FakeZFile( Zords ) );
     p = perpEval.ShortCorpusComputeEntropy(* zfile, params);
+//     perpEval.LoadCorpus(*zfile);
+//     p = perpEval.ComputeEntropy(params);
     Logger::Log(0, "Live Entropy %lf\n", p);
     
-    zmq::message_t response(100);
-    snprintf((char*)(response.data()), 100, "%lf", p);
+    zmq::message_t response(25);
+    snprintf((char*)(response.data()), 26, "%.25lf", p);
     s.send(response);
     
     fflush(stdout);
@@ -254,7 +261,6 @@ int liveProbMode(int order,  CommandOptions & opts) {
 //     buffer[BUFFERSIZE-1] = '\0';
 //     // dirtily break const correctness
 //     Zords.push_back(buffer);
-// //     Logger::Log(0, "Input:%s\n", buffer);
 //     fflush(stdout);    
 //     std::auto_ptr< ZFile> zfile( new FakeZFile( Zords ) );
 //     p = perpEval.ShortCorpusComputeEntropy( * zfile, params);
