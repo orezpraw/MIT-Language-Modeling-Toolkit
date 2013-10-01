@@ -241,13 +241,13 @@ int liveProbMode(int order,  CommandOptions & opts) {
     char * buffer = new char[request.size()+1];
     memcpy(buffer, request.data(), request.size());
     buffer[request.size()] = '\0';
-    Logger::Log(0, "Input:%s\n", buffer);
+//     Logger::Log(0, "Input:%s\n", buffer);
     Zords.push_back(buffer);
     std::auto_ptr< ZFile> zfile( new FakeZFile( Zords ) );
     p = perpEval.ShortCorpusComputeEntropy(* zfile, params);
 //     perpEval.LoadCorpus(*zfile);
 //     p = perpEval.ComputeEntropy(params);
-    Logger::Log(0, "Live Entropy %lf\n", p);
+//     Logger::Log(0, "Live Entropy %lf\n", p);
     
     zmq::message_t response(25);
     snprintf((char*)(response.data()), 26, "%.25lf", p);
