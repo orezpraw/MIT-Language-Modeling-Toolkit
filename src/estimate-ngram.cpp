@@ -252,8 +252,8 @@ int liveProbMode(int order,  CommandOptions & opts) {
     zmq::message_t response(25);
     snprintf((char*)(response.data()), 26, "%.25lf", p);
     s.send(response);
-    
     fflush(stdout);
+    delete buffer;
   }
 //   while( getline( stdin, buffer, BUFFERSIZE ) ) {    
 //     vector<char *> Zords;
