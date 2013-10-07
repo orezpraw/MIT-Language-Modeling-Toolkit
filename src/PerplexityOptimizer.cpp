@@ -124,7 +124,7 @@ PerplexityOptimizer::ShortCorpusComputeEntropy(ZFile &corpusFile, const ParamVec
         std::cout << exp(entropy) << "\t" << params << std::endl;
     else
         Logger::Log(2, "%f\n", exp(entropy));
-    return std::isnan(entropy) ? 7 : entropy;
+    return std::isnan(entropy) ? 70 : entropy;
 }
 
 bool
@@ -177,7 +177,7 @@ PerplexityOptimizer::ComputeEntropyNoEstimate(const ParamVector &params) {
         std::cout << exp(entropy) << "\t" << params << std::endl;
     else
         Logger::Log(2, "%f\n", exp(entropy));
-    return std::isnan(entropy) ? 7 : entropy;
+    return std::isnan(entropy) ? 70 : entropy;
 }
 
 
@@ -185,7 +185,7 @@ double
 PerplexityOptimizer::ComputeEntropy(const ParamVector &params) {
     // Estimate model.
     if (!_lm.Estimate(params, _mask))
-        return 7;  // Out of bounds.  Corresponds to perplexity = 1100.
+        return 70;  // Out of bounds.  Corresponds to perplexity = 1100.
 
     // Compute total log probability and num zero probs.
     _totLogProb = 0.0;
@@ -227,7 +227,7 @@ PerplexityOptimizer::ComputeEntropy(const ParamVector &params) {
         std::cout << exp(entropy) << "\t" << params << std::endl;
     else
         Logger::Log(2, "%f\n", exp(entropy));
-    return std::isnan(entropy) ? 7 : entropy;
+    return std::isnan(entropy) ? 70 : entropy;
 }
 
 double
