@@ -110,16 +110,26 @@ PerplexityOptimizer::ShortCorpusComputeEntropy(ZFile &corpusFile, const ParamVec
                 }
                 ngramOrder = std::min(ngramOrder + 1, size - 1);
 //                 _probCountVectors[boOrder][index]++;
-                if ((_lm.probs(boOrder))[index] == 0)
+                if ((_lm.probs(boOrder))[index] == 0) {
                     _numZeroProbs++;
-                else
-                    _totLogProb += log((_lm.probs(boOrder))[index]) * 1;
+                } else {
+                    double lp = log((_lm.probs(boOrder))[index]) * 1;
+                    if (std::isnan(lp)) {
+                      std::cerr << lp << "\t" << (_lm.probs(boOrder))[index]  << "\t" << boOrder << "\t" << index << " " << (_lm.probs(boOrder)).length() << "\t" << ngramOrder << " " << size << std::endl;
+                      return 72;
+                    }
+                    _totLogProb += lp;
+                    if (std::isnan(_totLogProb)) {
+                      std::cerr << -_totLogProb << "\t" << _numWords << "\t" << _numZeroProbs << std::endl;
+                      return 71;
+                    }
+                }
                 _numWords++;
             }
         }
     }
     double entropy = -_totLogProb / (_numWords - _numZeroProbs);
-//     std::cout << -_totLogProb << "\t" << _numWords << "\t" << _numZeroProbs << std::endl;
+//     std::cerr << -_totLogProb << "\t" << _numWords << "\t" << _numZeroProbs << std::endl;
     if (Logger::GetVerbosity() > 2)
         std::cout << exp(entropy) << "\t" << params << std::endl;
     else

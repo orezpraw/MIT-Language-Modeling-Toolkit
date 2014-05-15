@@ -217,12 +217,9 @@ int liveProbMode(int order,  CommandOptions & opts) {
                 opts["smoothing"], opts["weight-features"]);
   Logger::Log(0, "Parameters:\n");
   ParamVector params(lm.defParams());
-  lm.Estimate(params);
-
+  assert(lm.Estimate(params));
 
   fflush(stdout);
-  // issue: how many entries to predict?
-  
 
   Logger::Log(0, "Starting ZMQ\n", p);\
   zmq::context_t ctx (1);
