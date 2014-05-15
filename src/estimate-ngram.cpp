@@ -32,7 +32,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.   //
 ////////////////////////////////////////////////////////////////////////////
 
-
+#include <fenv.h>
 
 #include <vector>
 #include <string>
@@ -209,6 +209,7 @@ int liveProbMode(int order,  CommandOptions & opts) {
   vector<double> perps;  
   vector<double> logs;  
 //   char buffer[BUFFERSIZE];
+  feenableexcept(FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW);
   double p;
   Logger::Log(1, "[LL] Loading eval set %s...\n", opts["text"]); // [i].c_str());
   NgramLM lm(order);
