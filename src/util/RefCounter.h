@@ -35,7 +35,7 @@
 #ifndef REFCOUNTER_H
 #define REFCOUNTER_H
 
-#include <ext/hash_map>
+#include <unordered_map>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +59,7 @@ public:
     }
 
 private:
-    __gnu_cxx::hash_map<unsigned long, int> _map;
+    std::unordered_map<unsigned long, int> _map;
 };
 
 extern _RefCounter RefCounter;
