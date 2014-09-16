@@ -33,8 +33,11 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #if !__APPLE__
-#define SET_FLOATING_POINT_FLAGS
+#define SET_FLOATING_POINT_FLAGS 1
+#else
+#define SET_FLOATING_POINT_FLAGS 0
 #endif
+
 
 
 #if SET_FLOATING_POINT_FLAGS

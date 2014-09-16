@@ -28,6 +28,8 @@ mitlmoptimizeincdir = $(includedir)/mitlm/optimize
 mitlmutilincdir = $(includedir)/mitlm/util
 mitlmvectorincdir = $(includedir)/mitlm/vector
 
+CXXFLAGS = -std=c++11
+
 mitlmoptimizeinc_HEADERS= \
 	src/optimize/Optimization.h \
 	src/optimize/LBFGS.h \

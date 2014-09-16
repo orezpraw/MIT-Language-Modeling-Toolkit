@@ -40,15 +40,6 @@ using std::string;
 using std::vector;
 using std::unordered_map;
 
-// XXX: Ugly kludge to add a gash
-namespace std{
-  template<> struct hash<std::string> {
-    size_t operator()(const std::string &x) const { 
-        return hash<const char*>()(x.c_str());
-    }
-  };
-}
-
 class CommandOptions {
 protected:
     struct CmdOption {
