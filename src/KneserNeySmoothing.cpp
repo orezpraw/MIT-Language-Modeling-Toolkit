@@ -155,8 +155,7 @@ KneserNeySmoothing::Estimate(const ParamVector &params,
     // Check of out-of-bounds n-gram weighting parameters.
     size_t numDiscParams = _tuneParams ? _discOrder : 0;
     for (size_t i = numDiscParams; i < params.length(); i++)
-        // Warning generated here: Is this a bug?
-        if (fabs(params[i] > 100)) {
+        if (fabs(params[i]) > 100) {
             Logger::Log(2, "Clipping\n");
             return false;
         }
