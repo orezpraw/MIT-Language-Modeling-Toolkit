@@ -41,8 +41,10 @@
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
+#include <string>
 #include <vector>
 #include "Logger.h"
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

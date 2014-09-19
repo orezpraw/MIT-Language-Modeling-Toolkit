@@ -101,6 +101,12 @@ xlc )
   am_opt=--include-deps;;
 esac
 
+# Use glibtoolize on OS X.
+LIBTOOLIZE=libtoolize
+if [ "`uname` = Darwin" -a "`hash $LIBTOOLIZE` -ne 0" ]; then
+  LIBTOOLIZE=glibtoolize
+fi
+
 for coin in `find $srcdir -name configure.ac -print`
 do 
   dr=`dirname $coin`
@@ -134,7 +140,7 @@ do
       if grep "^AC_PROG_LIBTOOL" configure.ac >/dev/null; then
 	if test -z "$NO_LIBTOOLIZE" ; then 
 	  echo "Running libtoolize..."
-	  libtoolize --force --copy
+	  $LIBTOOLIZE --force --copy
 	fi
       fi
       echo "Running aclocal $aclocalinclude ..."

@@ -32,7 +32,17 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.   //
 ////////////////////////////////////////////////////////////////////////////
 
+#if !__APPLE__
+#define SET_FLOATING_POINT_FLAGS 1
+#else
+#define SET_FLOATING_POINT_FLAGS 0
+#endif
+
+
+
+#if SET_FLOATING_POINT_FLAGS
 #include <fenv.h>
+#endif
 
 #include <vector>
 #include <string>
@@ -209,7 +219,11 @@ int liveProbMode(int order,  CommandOptions & opts) {
   vector<double> perps;  
   vector<double> logs;  
 //   char buffer[BUFFERSIZE];
+
+#if SET_FLOATING_POINT_FLAGS
   feenableexcept(FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW);
+#endif
+
   double p;
   Logger::Log(1, "[LL] Loading eval set %s...\n", opts["text"]); // [i].c_str());
   NgramLM lm(order);

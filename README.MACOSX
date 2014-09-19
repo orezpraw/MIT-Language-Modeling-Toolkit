@@ -1,0 +1,10 @@
+If you have Homebrew <http://brew.sh/>:
+
+    # Install some random dude's tap; he has a formula for ZeroMQ C++.
+    brew tap bertjwregeer/compat
+    # Install gcc (needed for gfortran), glibtool, Boost, ZeroMQ and its C++
+    # bindings.
+    brew install gcc libtool boost zeromq cppmq
+    # Then install as normal.
+    ./autogen.sh
+

@@ -36,12 +36,12 @@
 #include <queue>
 #include <limits>
 #include <algorithm>
-#include <tr1/unordered_map>
+#include <unordered_map>
 #include "util/FastIO.h"
 #include "Lattice.h"
 
 using std::vector;
-using std::tr1::unordered_map;
+using std::unordered_map;
 
 #define MAXLINE 1024
 
