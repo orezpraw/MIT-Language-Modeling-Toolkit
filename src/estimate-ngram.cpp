@@ -179,7 +179,6 @@ int liveMode(int order,  CommandOptions & opts) {
 
   lm.Estimate(params);
 
-
   Logger::Log(0, "Live Guess:\n");
   LiveGuess eval(lm, order);
   fflush(stdout);
@@ -234,51 +233,56 @@ int liveProbMode(int order,  CommandOptions & opts) {
   ParamVector params(lm.defParams());
   assert(lm.Estimate(params));
 
+  
+
   fflush(stdout);
 
   Logger::Log(0, "Starting ZMQ\n", p);\
   zmq::context_t ctx (1);
   zmq::socket_t s (ctx, ZMQ_REP);
   s.bind(opts["live-prob"]);
-  
+
   Logger::Log(0, "Live Entropy Ready\n", p);\
   fflush(stdout);
-  
+
   while(true) {
     zmq::message_t request;
     s.recv(&request);
+
+    // TODO: define protocol for other kinds of messages.
+
+    // zords...? ZORDS?!
     vector<char *> Zords;
     PerplexityOptimizer perpEval(lm, order);
+
+    // Get a zero-terminated string of the incoming request.
     std::string stringbuf((char*)(request.data()), request.size());
     char * buffer = new char[request.size()+1];
     memcpy(buffer, request.data(), request.size());
     buffer[request.size()] = '\0';
-//     Logger::Log(0, "Input:%s\n", buffer);
+
+    Logger::Log(0, "Input:%s\n", buffer);
+
     Zords.push_back(buffer);
-    std::auto_ptr< ZFile> zfile( new FakeZFile( Zords ) );
+    std::unique_ptr<ZFile> zfile( new FakeZFile( Zords ) );
+
+#if NO_SHORT_COMPUTE_ENTROPY
+    perpEval.LoadCorpus(*zfile);
+    p = perpEval.ComputeEntropy(params);
+#else
     p = perpEval.ShortCorpusComputeEntropy(* zfile, params);
-//     perpEval.LoadCorpus(*zfile);
-//     p = perpEval.ComputeEntropy(params);
-//     Logger::Log(0, "Live Entropy %lf\n", p);
-    
+#endif
+    Logger::Log(0, "Live Entropy %lf\n", p);
+
+    // TODO: allow an arbitrary response.
     zmq::message_t response(25);
     snprintf((char*)(response.data()), 26, "%.25lf", p);
     s.send(response);
     fflush(stdout);
+
     delete[] buffer;
   }
-//   while( getline( stdin, buffer, BUFFERSIZE ) ) {    
-//     vector<char *> Zords;
-//     PerplexityOptimizer perpEval(lm, order);
-//     buffer[BUFFERSIZE-1] = '\0';
-//     // dirtily break const correctness
-//     Zords.push_back(buffer);
-//     fflush(stdout);    
-//     std::auto_ptr< ZFile> zfile( new FakeZFile( Zords ) );
-//     p = perpEval.ShortCorpusComputeEntropy( * zfile, params);
-//     Logger::Log(0, "Live Entropy %lf\n", p);\
-//     fflush(stdout);    
-//   }
+
   // get command
   // if command is add corpus
   //  Make an N-Gram model based on the read in text 

@@ -20,7 +20,7 @@ libtool
 ltmain.sh
 missing
 src/.deps/
-src/.dirstamp
+.dirstamp
 *.cpp~
 *.h~
 /.libs/
