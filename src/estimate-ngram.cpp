@@ -167,6 +167,84 @@ int evaluatePerplexityWithCrossFolds(int order, int folds, int repeats, CommandO
 }
 
 
+#define REQ_CROSS_ENTROPY   'x'
+#define REQ_PREDICTION      'p'
+
+/* Glues together a bunch of stuff for live mode. */
+struct LMState {
+  NgramLM &lm;
+  zmq::socket_t &s;
+  int order;
+  ParamVector &params;
+
+  LMState(NgramLM &inLm,
+      zmq::socket_t &inS,
+      int inOrder,
+      ParamVector &inParams) :
+    lm(inLm), s(inS), order(inOrder), params(inParams) {}
+};
+  
+
+/*
+ * Hacky extraction of live mode components.
+ */
+void doCrossEntropy(LMState &st, char* data, size_t size) {
+  double p;
+  vector<char *> Zords;
+  PerplexityOptimizer perpEval(st.lm, st.order);
+
+  char *buffer = new char[size + 1];
+  memcpy(buffer, data, size);
+  buffer[size] = '\0';
+  Logger::Log(0, "Input:%s\n", buffer);
+  Zords.push_back(buffer);
+  std::unique_ptr< ZFile> zfile(new FakeZFile(Zords));
+
+#if NO_SHORT_COMPUTE_ENTROPY
+  perpEval.LoadCorpus(*zfile);
+  p = perpEval.ComputeEntropy(st.params);
+#else
+  p = perpEval.ShortCorpusComputeEntropy(*zfile, st.params);
+#endif
+  Logger::Log(0, "Live Entropy %lf\n", p);
+
+  zmq::message_t response(25);
+  snprintf((char*)(response.data()), 26, "%.25lf", p);
+  st.s.send(response);
+  fflush(stdout);
+  delete[] buffer;
+}
+
+void doPrediction(LMState &st, char *input, size_t size) {
+  assert(false);
+}
+
+void delegateOnRequest(LMState &st) {
+    zmq::message_t request;
+    st.s.recv(&request);
+
+    /* Need a message with at least a prefix. */
+    assert(request.size() >= 1);
+    char mode = ((char *) request.data())[0];
+
+    /* The data is the request minus 1 header byte. */
+    char *data = ((char *) request.data()) + 1;
+    size_t size = request.size() - 1;
+
+    switch (mode) {
+      case REQ_PREDICTION:
+        doPrediction(st, data, size);
+        break;
+      case REQ_CROSS_ENTROPY:
+        doCrossEntropy(st, data, size);
+        break;
+      default:
+        Logger::Error(0, "ZMQ: Unknown request `%c`!\n", mode);
+        abort();
+        break;
+    }
+}
+
 
 int liveMode(int order,  CommandOptions & opts) {
   vector<double> perps;  
@@ -217,101 +295,6 @@ int liveMode(int order,  CommandOptions & opts) {
   return 0;
 }
 
-/* Parses a request from ZeroMQ. */
-/* Manages the ZMQ interface. Highly couples information. */
-class LiveMode {
-  /* The following refer to just the *payload* of the request; this omits the
-   * request type. */ 
-  const char *payload;
-  int payloadSize;
-  std::ostream &output;
-
-  /* Different kinds of requests. */
-  enum class RequestType : char {
-    CROSS_ENTROPY = 'x',
-    TOKEN_PREDICT = 'p',
-  };
-  NgramLM &lm;
-  size_t order;
-
-public:
-  LiveMode(NgramLM &inLm, size_t inOrder, std::ostream &stream) :
-    lm(lm), order(inOrder), output(stream) {}
-
-  /**
-   * Parses the request and appends to response to the output.
-   */
-  bool parseRequest(const char *requestText, int size) {
-    if (size <= 1) {
-      Logger::Error(0, "ZMQ: Too short of a message: %s", requestText);
-      return NULL;
-    }
-
-    Logger::Log(1, "Got request for `%c`\n", requestText[0]);
-
-    RequestType type = (RequestType) requestText[0];
-    /* Set the message text. */
-    payload = requestText + 1;
-    payloadSize = size - 1;
-
-    switch (type) {
-      case RequestType::CROSS_ENTROPY:
-        /* Get the CrossEntropy as if things and stuff. */
-        Logger::Log(1, "Doing cross entropy...\n");
-        return doCrossEntropy();
-      case RequestType::TOKEN_PREDICT:
-        Logger::Log(1, "Doing prediction...\n");
-        return doPrediction();
-      default:
-        Logger::Error(1, "Invalid request type `%c`!\n", requestText[0]);
-        return false;
-    }
-  }
-
-  bool doCrossEntropy() const {
-    double p;
-    // zords...? ZORDS?!
-    vector<char *> Zords;
-    PerplexityOptimizer perpEval(lm, (size_t) order);
-    ParamVector params(lm.defParams());
-
-    // Get a zero-terminated string of the incoming request.
-    char *buffer = new char[payloadSize + 1];
-    memcpy(buffer, payload, payloadSize);
-    buffer[payloadSize] = '\0';
-
-    Logger::Log(0, "Input:%s\n", buffer);
-
-    Zords.push_back(buffer);
-    std::unique_ptr<ZFile> zfile( new FakeZFile( Zords ) );
-
-#if NO_SHORT_COMPUTE_ENTROPY
-    perpEval.LoadCorpus(*zfile);
-    p = perpEval.ComputeEntropy(params);
-#else
-    Logger::Log(0, "Starting short corpus entropy computation...\n");
-    p = perpEval.ShortCorpusComputeEntropy(*zfile, params);
-#endif
-    Logger::Log(0, "Live Entropy %lf\n", p);
-
-    /* Write that probability to the output! */
-    output << std::setprecision(25) << p;
-
-    delete[] buffer;
-
-    return true;
-  }
-
-  bool doPrediction() const {
-    return false;
-  }
-
-};
-
-
-void free_noop(void *data, void *hint) {
-}
-
 
 int liveProbMode(int order,  CommandOptions & opts) {
   /* I think this is a hack so that the server doesn't spontaneously die on
@@ -320,7 +303,6 @@ int liveProbMode(int order,  CommandOptions & opts) {
   feenableexcept(FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW);
 #endif
 
-  double p;
   Logger::Log(1, "[LL] Loading eval set %s...\n", opts["text"]); // [i].c_str());
   NgramLM lm(order);
   lm.Initialize(opts["vocab"], AsBoolean(opts["unk"]), 
@@ -340,30 +322,15 @@ int liveProbMode(int order,  CommandOptions & opts) {
   zmq::socket_t s (ctx, ZMQ_REP);
   s.bind(opts["live-prob"]);
 
-  Logger::Log(0, "Live Entropy Ready\n");
+  Logger::Log(0, "Live Mode Ready\n");
 
   std::stringstream responseBuffer;
-  LiveMode handler(lm, order, responseBuffer);
+
+  /* Bundle the state around in an ugly struct. */
+  LMState st(lm, s, order, params);
 
   while(true) {
-    /* empty out the response buffer. */
-    responseBuffer.str("");
-    zmq::message_t request;
-    s.recv(&request);
-
-    bool success = handler.parseRequest((char *) request.data(),
-        request.size());
-
-    if (!success) {
-      Logger::Error(0, "Failed to handle request!");
-      continue;
-    }
-
-    // TODO: allow an arbitrary response.
-    std::string msg = responseBuffer.str();
-    zmq::message_t response((char *) msg.c_str(), msg.size(), free_noop);
-
-    s.send(response);
+    delegateOnRequest(st);
   }
 
   // get command
@@ -374,7 +341,7 @@ int liveProbMode(int order,  CommandOptions & opts) {
   // if command is estimate
   // eval.estimate( str, nestimates);
   // if command is exit
-  
+
   return 0;
 }
 
