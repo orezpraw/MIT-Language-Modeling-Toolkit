@@ -176,12 +176,14 @@ struct LMState {
   zmq::socket_t &s;
   int order;
   ParamVector &params;
+  LiveGuess &eval;
 
   LMState(NgramLM &inLm,
       zmq::socket_t &inS,
       int inOrder,
-      ParamVector &inParams) :
-    lm(inLm), s(inS), order(inOrder), params(inParams) {}
+      ParamVector &inParams,
+      LiveGuess &inLg) :
+    lm(inLm), s(inS), order(inOrder), params(inParams), eval(inLg) {}
 };
   
 
@@ -215,8 +217,38 @@ void doCrossEntropy(LMState &st, char* data, size_t size) {
   delete[] buffer;
 }
 
-void doPrediction(LMState &st, char *input, size_t size) {
-  assert(false);
+void doPrediction(LMState &st, char *input, size_t n) {
+    Logger::Log(0, "Live Guess Input:%s\n", input);
+    std::unique_ptr<std::vector<LiveGuessResult> > results = st.eval.Predict(input, 50);
+    Logger::Log(0, "Live Guess Predict Called\n");
+    Logger::Log(0, "Size %d\n", n);
+    Logger::Log(0, "Live Guess Rankings\n");
+
+    /* Make a stringstream here! */
+    std::stringstream output;
+
+    /* Output all predictions, woo! */
+    for (int i = 0; i < n; i++) {
+      Logger::Log(0, "Starting rank %d\n", i);
+      LiveGuessResult res = (*results)[i];
+      Logger::Log(0, "\t%f\t%s\n", res.probability, res.str);
+      output << res.str;
+
+      delete[] res.str;
+      res.str = NULL;
+    }
+
+    std::string output_str = output.str();
+
+    zmq::message_t response(output_str.size());
+    memcpy(response.data(), output_str.c_str(), output_str.size());
+    st.s.send(response);
+    /* Don't know why this is here, but out of pure superstition, I'm
+     * leaving it . */
+    fflush(stdout);
+
+    Logger::Log(0, "Live Guess Rankings Done\n");
+    fflush(stdout);
 }
 
 void delegateOnRequest(LMState &st) {
@@ -267,7 +299,7 @@ int liveMode(int order,  CommandOptions & opts) {
   
   while( getline( stdin, buffer, BUFFERSIZE ) ) {    
     Logger::Log(0, "Live Guess Input:%s\n", buffer);
-    std::auto_ptr< std::vector<LiveGuessResult> > results = eval.Predict( buffer , 50 );
+    std::unique_ptr< std::vector<LiveGuessResult> > results = eval.Predict( buffer , 50 );
     Logger::Log(0, "Live Guess Predict Called\n");
     int n = (*results).size();
     Logger::Log(0, "Size %d\n", n);
@@ -283,15 +315,6 @@ int liveMode(int order,  CommandOptions & opts) {
     fflush(stdout);    
   }
   
-  // get command
-  // if command is add corpus
-  //  Make an N-Gram model based on the read in text 
-  //  extend the original n-gram model (extend) with the new model
-  // eval.addToCorpus( str );
-  // if command is estimate
-  // eval.estimate( str, nestimates);
-  // if command is exit
-  
   return 0;
 }
 
@@ -303,18 +326,16 @@ int liveProbMode(int order,  CommandOptions & opts) {
   feenableexcept(FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW);
 #endif
 
-  Logger::Log(1, "[LL] Loading eval set %s...\n", opts["text"]); // [i].c_str());
+  Logger::Log(1, "[LL] Loading eval set %s...\n", opts["text"]);
   NgramLM lm(order);
   lm.Initialize(opts["vocab"], AsBoolean(opts["unk"]), 
                 opts["text"], opts["counts"], 
                 opts["smoothing"], opts["weight-features"]);
   Logger::Log(0, "Parameters:\n");
+
+  LiveGuess eval(lm, order);
   ParamVector params(lm.defParams());
   assert(lm.Estimate(params));
-
-  /* The request thingy will place things on this buffer. */
-  std::stringstream buffer;
-
   fflush(stdout);
 
   Logger::Log(0, "Starting ZMQ\n");
@@ -324,23 +345,12 @@ int liveProbMode(int order,  CommandOptions & opts) {
 
   Logger::Log(0, "Live Mode Ready\n");
 
-  std::stringstream responseBuffer;
-
-  /* Bundle the state around in an ugly struct. */
-  LMState st(lm, s, order, params);
+  /* Bundle all the state around in a big ugly struct. */
+  LMState st(lm, s, order, params, eval);
 
   while(true) {
     delegateOnRequest(st);
   }
-
-  // get command
-  // if command is add corpus
-  //  Make an N-Gram model based on the read in text 
-  //  extend the original n-gram model (extend) with the new model
-  // eval.addToCorpus( str );
-  // if command is estimate
-  // eval.estimate( str, nestimates);
-  // if command is exit
 
   return 0;
 }
