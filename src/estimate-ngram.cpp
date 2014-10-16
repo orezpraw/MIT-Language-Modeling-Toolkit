@@ -195,11 +195,8 @@ void doCrossEntropy(LMState &st, char* data, size_t size) {
   vector<char *> Zords;
   PerplexityOptimizer perpEval(st.lm, st.order);
 
-  char *buffer = new char[size + 1];
-  memcpy(buffer, data, size);
-  buffer[size] = '\0';
-  Logger::Log(0, "Input:%s\n", buffer);
-  Zords.push_back(buffer);
+  Logger::Log(0, "Input:%s\n", data);
+  Zords.push_back(data);
   std::unique_ptr< ZFile> zfile(new FakeZFile(Zords));
 
 #if NO_SHORT_COMPUTE_ENTROPY
@@ -214,41 +211,42 @@ void doCrossEntropy(LMState &st, char* data, size_t size) {
   snprintf((char*)(response.data()), 26, "%.25lf", p);
   st.s.send(response);
   fflush(stdout);
-  delete[] buffer;
 }
 
-void doPrediction(LMState &st, char *input, size_t n) {
-    Logger::Log(0, "Live Guess Input:%s\n", input);
-    std::unique_ptr<std::vector<LiveGuessResult> > results = st.eval.Predict(input, 50);
-    Logger::Log(0, "Live Guess Predict Called\n");
-    Logger::Log(0, "Size %d\n", n);
-    Logger::Log(0, "Live Guess Rankings\n");
+void doPrediction(LMState &st, char *input, size_t size) {
+  Logger::Log(0, "Live Guess Input: %s\n", input);
+  std::auto_ptr<std::vector<LiveGuessResult> > results =
+    st.eval.Predict(input, st.order);
+  Logger::Log(0, "Live Guess Predict Called\n");
+  int n = results->size();
+  Logger::Log(0, "Number of prediction results: %d\n", n);
+  Logger::Log(0, "Live Guess Rankings\n");
 
-    /* Make a stringstream here! */
-    std::stringstream output;
+  /* Concatenate all results to this buffer. */
+  std::stringstream output;
 
-    /* Output all predictions, woo! */
-    for (int i = 0; i < n; i++) {
-      Logger::Log(0, "Starting rank %d\n", i);
-      LiveGuessResult res = (*results)[i];
-      Logger::Log(0, "\t%f\t%s\n", res.probability, res.str);
-      output << res.str;
+  /* Output all predictions, woo! */
+  for (int i = 0; i < n; i++) {
+    Logger::Log(0, "Starting rank %d\n", i);
+    LiveGuessResult res = (*results)[i];
+    Logger::Log(0, "\t%f\t%s\n", res.probability, res.str);
+    output << res.str;
 
-      delete[] res.str;
-      res.str = NULL;
-    }
+    delete[] res.str;
+    res.str = NULL;
+  }
 
-    std::string output_str = output.str();
+  std::string output_str = output.str();
 
-    zmq::message_t response(output_str.size());
-    memcpy(response.data(), output_str.c_str(), output_str.size());
-    st.s.send(response);
-    /* Don't know why this is here, but out of pure superstition, I'm
-     * leaving it . */
-    fflush(stdout);
+  zmq::message_t response(output_str.size());
+  memcpy(response.data(), output_str.c_str(), output_str.size());
+  st.s.send(response);
+  /* Don't know why this is here, but out of pure superstition, I'm
+   * leaving it. */
+  fflush(stdout);
 
-    Logger::Log(0, "Live Guess Rankings Done\n");
-    fflush(stdout);
+  Logger::Log(0, "Live Guess Rankings Done\n");
+  fflush(stdout);
 }
 
 void delegateOnRequest(LMState &st) {
@@ -260,8 +258,13 @@ void delegateOnRequest(LMState &st) {
     char mode = ((char *) request.data())[0];
 
     /* The data is the request minus 1 header byte. */
-    char *data = ((char *) request.data()) + 1;
     size_t size = request.size() - 1;
+
+    /* And because everything expects zero-terminated strings, we'll copy the
+     * string to a new buffer because ¯(°_o)/¯. */
+    char* data = new char[size + 1];
+    memcpy(data, ((char *) request.data()) + 1, size);
+    data[size] = '\0';
 
     switch (mode) {
       case REQ_PREDICTION:
@@ -275,6 +278,8 @@ void delegateOnRequest(LMState &st) {
         abort();
         break;
     }
+
+    delete[] data;
 }
 
 
@@ -319,7 +324,7 @@ int liveMode(int order,  CommandOptions & opts) {
 }
 
 
-int liveProbMode(int order,  CommandOptions & opts) {
+int zmqLiveMode(int order,  CommandOptions & opts) {
   /* I think this is a hack so that the server doesn't spontaneously die on
    * us. */
 #if SET_FLOATING_POINT_FLAGS
@@ -429,7 +434,7 @@ int main(int argc, char* argv[]) {
       return liveMode( order, opts );
     }
     if ( opts["live-prob"] ) {
-      return liveProbMode( order, opts );
+      return zmqLiveMode( order, opts );
     }
 
     // Build language model.
