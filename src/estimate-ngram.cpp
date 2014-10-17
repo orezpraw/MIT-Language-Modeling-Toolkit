@@ -215,8 +215,12 @@ void doCrossEntropy(LMState &st, char* data, size_t size) {
 
 void doPrediction(LMState &st, char *input, size_t size) {
   Logger::Log(0, "Live Guess Input: %s\n", input);
+
+  /* Fun fact! The prediction arugment is ignored, so I'm passing an arbitrary
+   * magic constant! */
   std::auto_ptr<std::vector<LiveGuessResult> > results =
-    st.eval.Predict(input, st.order);
+    st.eval.Predict(input, 10);
+
   Logger::Log(0, "Live Guess Predict Called\n");
   int n = results->size();
   Logger::Log(0, "Number of prediction results: %d\n", n);
@@ -230,7 +234,7 @@ void doPrediction(LMState &st, char *input, size_t size) {
     Logger::Log(0, "Starting rank %d\n", i);
     LiveGuessResult res = (*results)[i];
     Logger::Log(0, "\t%f\t%s\n", res.probability, res.str);
-    output << res.str;
+    output << res.probability << '\t' << res.str << '\n';
 
     delete[] res.str;
     res.str = NULL;
@@ -331,6 +335,10 @@ int zmqLiveMode(int order,  CommandOptions & opts) {
   feenableexcept(FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW);
 #endif
 
+  /* XXX: Ignore whatever order we were originally given and just use
+   * trigrams. */
+  order = 3;
+
   Logger::Log(1, "[LL] Loading eval set %s...\n", opts["text"]);
   NgramLM lm(order);
   lm.Initialize(opts["vocab"], AsBoolean(opts["unk"]), 
@@ -396,6 +404,7 @@ int main(int argc, char* argv[]) {
     opts.AddOption("repeat,repeat", "Repeat the calculation", "1");
     opts.AddOption("live,live", "Live Input Mode");
     opts.AddOption("live-prob,live-prob", "Live Input Mode");
+
 
     if (!opts.ParseArguments(argc, (const char **)argv) ||
         opts["help"] != NULL) {
