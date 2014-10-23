@@ -1,0 +1,2 @@
+#!/bin/sh
+gdb -x setbreak.txt --args ../.libs/estimate-ngram -t ~/.unnaturalCode/pyCorpus -o 3 -s ModKN -u -verbose 2
