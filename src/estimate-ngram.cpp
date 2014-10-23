@@ -334,9 +334,6 @@ int zmqLiveMode(int order,  CommandOptions & opts) {
   feenableexcept(FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW);
 #endif
 
-  /* XXX: Ignore whatever order we were originally given and just use
-   * trigrams. */
-  order = 3;
 
   Logger::Log(1, "[LL] Loading eval set %s...\n", opts["text"]);
   NgramLM lm(order);
@@ -345,7 +342,9 @@ int zmqLiveMode(int order,  CommandOptions & opts) {
                 opts["smoothing"], opts["weight-features"]);
   Logger::Log(1, "Parameters:\n");
 
-  LiveGuess eval(lm, order);
+  /* XXX: Ignore whatever order we were originally given and just use
+   * max-out at 4-grams. */
+  LiveGuess eval(lm, (order < 4 ? order : 4));
   ParamVector params(lm.defParams());
   assert(lm.Estimate(params));
   fflush(stdout);
