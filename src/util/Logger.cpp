@@ -52,9 +52,12 @@ void Logger::Log(int level, const char *fmt, ...) {
         va_list args;
         va_start(args, fmt);
         if (_timestamp) 
-            printf("%.3f\t", (float)(clock() - _startTime) / CLOCKS_PER_SEC);
-        vprintf(fmt, args);
+            fprintf(stderr, "%.3f\t", (float)(clock() - _startTime) / CLOCKS_PER_SEC);
+        fprintf(stderr, "\e[0;36m");
+        vfprintf(stderr, fmt, args);
         va_end(args);
+        fprintf(stderr, "\e[m");
+        fflush(stderr);
     }
 }
 
@@ -68,6 +71,7 @@ void Logger::Warn(int level, const char *fmt, ...) {
         vfprintf(stderr, fmt, args);
         fprintf(stderr, "\e[m");
         va_end(args);
+        fflush(stderr);
     }
 }
 
@@ -81,5 +85,6 @@ void Logger::Error(int level, const char *fmt, ...) {
         vfprintf(stderr, fmt, args);
         fprintf(stderr, "\e[m");
         va_end(args);
+        fflush(stderr);
     }
 }

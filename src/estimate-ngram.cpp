@@ -47,6 +47,9 @@
 #include <vector>
 #include <string>
 #include <cstdlib>
+#include <ostream>
+#include <iomanip>
+#include <sstream>
 
 #include "util/CommandOptions.h"
 
@@ -164,6 +167,124 @@ int evaluatePerplexityWithCrossFolds(int order, int folds, int repeats, CommandO
 }
 
 
+#define REQ_CROSS_ENTROPY   'x'
+#define REQ_PREDICTION      'p'
+
+/* Glues together a bunch of stuff for live mode. */
+struct LMState {
+  NgramLM &lm;
+  zmq::socket_t &s;
+  int order;
+  ParamVector &params;
+  LiveGuess &eval;
+
+  LMState(NgramLM &inLm,
+      zmq::socket_t &inS,
+      int inOrder,
+      ParamVector &inParams,
+      LiveGuess &inLg) :
+    lm(inLm), s(inS), order(inOrder), params(inParams), eval(inLg) {}
+};
+  
+
+/*
+ * Hacky extraction of live mode components.
+ */
+void doCrossEntropy(LMState &st, char* data, size_t size) {
+  double p;
+  vector<char *> Zords;
+  PerplexityOptimizer perpEval(st.lm, st.order);
+
+  Logger::Log(2, "Input:%s\n", data);
+  Zords.push_back(data);
+  std::unique_ptr< ZFile> zfile(new FakeZFile(Zords));
+
+#if NO_SHORT_COMPUTE_ENTROPY
+  perpEval.LoadCorpus(*zfile);
+  p = perpEval.ComputeEntropy(st.params);
+#else
+  p = perpEval.ShortCorpusComputeEntropy(*zfile, st.params);
+#endif
+  Logger::Log(2, "Live Entropy %lf\n", p);
+
+  zmq::message_t response(25);
+  snprintf((char*)(response.data()), 26, "%.25lf", p);
+  st.s.send(response);
+  fflush(stdout);
+}
+
+void doPrediction(LMState &st, char *input, size_t size) {
+  Logger::Log(2, "Live Guess Input: %s\n", input);
+
+  /* Fun fact! The prediction arugment is ignored, so I'm passing an arbitrary
+   * magic constant! */
+  std::auto_ptr<std::vector<LiveGuessResult> > results =
+    st.eval.Predict(input, 10);
+
+  int n = results->size();
+  Logger::Log(2, "Number of prediction results: %d\n", n);
+  Logger::Log(2, "Live Guess Rankings\n");
+
+  /* Concatenate all results to this buffer. */
+  std::stringstream output;
+
+  /* Output all predictions, woo! */
+  for (int i = 0; i < n; i++) {
+    Logger::Log(2, "Starting rank %d\n", i);
+    LiveGuessResult res = (*results)[i];
+    Logger::Log(2, "\t%f\t%s\n", res.probability, res.str);
+    output << res.probability << '\t' << res.str << '\n';
+
+    delete[] res.str;
+    res.str = NULL;
+  }
+
+  std::string output_str = output.str();
+
+  zmq::message_t response(output_str.size());
+  memcpy(response.data(), output_str.c_str(), output_str.size());
+  st.s.send(response);
+  /* Don't know why this is here, but out of pure superstition, I'm
+   * leaving it. */
+  fflush(stdout);
+
+  Logger::Log(2, "Live Guess Rankings Done\n");
+  fflush(stdout);
+}
+
+void delegateOnRequest(LMState &st) {
+    zmq::message_t request;
+    st.s.recv(&request);
+
+    /* Need a message with at least a prefix. */
+    assert(request.size() >= 1);
+    char mode = ((char *) request.data())[0];
+
+    /* The data is the request minus 1 header byte. */
+    size_t size = request.size() - 1;
+
+    /* And because everything expects zero-terminated strings, we'll copy the
+     * string to a new buffer because ¯(°_o)/¯. */
+    char* data = new char[size + 1];
+    memcpy(data, ((char *) request.data()) + 1, size);
+    data[size] = '\0';
+
+    switch (mode) {
+      case REQ_PREDICTION:
+        doPrediction(st, data, size);
+        break;
+      case REQ_CROSS_ENTROPY:
+        doCrossEntropy(st, data, size);
+        break;
+      default:
+        Logger::Error(0, "ZMQ Live Mode: Unknown request `%c`!\n", mode);
+        abort();
+        break;
+    }
+
+    delete[] data;
+}
+
 
 int liveMode(int order,  CommandOptions & opts) {
   vector<double> perps;  
@@ -186,7 +307,7 @@ int liveMode(int order,  CommandOptions & opts) {
   
   while( getline( stdin, buffer, BUFFERSIZE ) ) {    
     Logger::Log(0, "Live Guess Input:%s\n", buffer);
-    std::auto_ptr< std::vector<LiveGuessResult> > results = eval.Predict( buffer , 50 );
+    std::unique_ptr< std::vector<LiveGuessResult> > results = eval.Predict( buffer , 50 );
     Logger::Log(0, "Live Guess Predict Called\n");
     int n = (*results).size();
     Logger::Log(0, "Size %d\n", n);
@@ -202,96 +323,46 @@ int liveMode(int order,  CommandOptions & opts) {
     fflush(stdout);    
   }
   
-  // get command
-  // if command is add corpus
-  //  Make an N-Gram model based on the read in text 
-  //  extend the original n-gram model (extend) with the new model
-  // eval.addToCorpus( str );
-  // if command is estimate
-  // eval.estimate( str, nestimates);
-  // if command is exit
-  
   return 0;
 }
 
-int liveProbMode(int order,  CommandOptions & opts) {
-  vector<double> perps;  
-  vector<double> logs;  
-//   char buffer[BUFFERSIZE];
 
+int zmqLiveMode(int order,  CommandOptions & opts) {
+  /* I think this is a hack so that the server doesn't spontaneously die on
+   * us. */
 #if SET_FLOATING_POINT_FLAGS
   feenableexcept(FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW);
 #endif
 
-  double p;
-  Logger::Log(1, "[LL] Loading eval set %s...\n", opts["text"]); // [i].c_str());
+
+  Logger::Log(1, "[LL] Loading eval set %s...\n", opts["text"]);
   NgramLM lm(order);
   lm.Initialize(opts["vocab"], AsBoolean(opts["unk"]), 
                 opts["text"], opts["counts"], 
                 opts["smoothing"], opts["weight-features"]);
-  Logger::Log(0, "Parameters:\n");
+  Logger::Log(1, "Parameters:\n");
+
+  /* XXX: Ignore whatever order we were originally given and just use
+   * max-out at 4-grams. */
+  LiveGuess eval(lm, (order < 4 ? order : 4));
   ParamVector params(lm.defParams());
   assert(lm.Estimate(params));
-
-  
-
   fflush(stdout);
 
-  Logger::Log(0, "Starting ZMQ\n", p);\
+  Logger::Log(1, "Starting ZMQ\n");
   zmq::context_t ctx (1);
   zmq::socket_t s (ctx, ZMQ_REP);
   s.bind(opts["live-prob"]);
 
-  Logger::Log(0, "Live Entropy Ready\n", p);\
-  fflush(stdout);
+  Logger::Log(1, "Live Mode Ready\n");
+
+  /* Bundle all the state around in a big ugly struct. */
+  LMState st(lm, s, order, params, eval);
 
   while(true) {
-    zmq::message_t request;
-    s.recv(&request);
-
-    // TODO: define protocol for other kinds of messages.
-
-    // zords...? ZORDS?!
-    vector<char *> Zords;
-    PerplexityOptimizer perpEval(lm, order);
-
-    // Get a zero-terminated string of the incoming request.
-    std::string stringbuf((char*)(request.data()), request.size());
-    char * buffer = new char[request.size()+1];
-    memcpy(buffer, request.data(), request.size());
-    buffer[request.size()] = '\0';
-
-    Logger::Log(0, "Input:%s\n", buffer);
-
-    Zords.push_back(buffer);
-    std::unique_ptr<ZFile> zfile( new FakeZFile( Zords ) );
-
-#if NO_SHORT_COMPUTE_ENTROPY
-    perpEval.LoadCorpus(*zfile);
-    p = perpEval.ComputeEntropy(params);
-#else
-    p = perpEval.ShortCorpusComputeEntropy(* zfile, params);
-#endif
-    Logger::Log(0, "Live Entropy %lf\n", p);
-
-    // TODO: allow an arbitrary response.
-    zmq::message_t response(25);
-    snprintf((char*)(response.data()), 26, "%.25lf", p);
-    s.send(response);
-    fflush(stdout);
-
-    delete[] buffer;
+    delegateOnRequest(st);
   }
 
-  // get command
-  // if command is add corpus
-  //  Make an N-Gram model based on the read in text 
-  //  extend the original n-gram model (extend) with the new model
-  // eval.addToCorpus( str );
-  // if command is estimate
-  // eval.estimate( str, nestimates);
-  // if command is exit
-  
   return 0;
 }
 
@@ -332,6 +403,7 @@ int main(int argc, char* argv[]) {
     opts.AddOption("live,live", "Live Input Mode");
     opts.AddOption("live-prob,live-prob", "Live Input Mode");
 
+
     if (!opts.ParseArguments(argc, (const char **)argv) ||
         opts["help"] != NULL) {
         std::cout << std::endl;
@@ -369,7 +441,7 @@ int main(int argc, char* argv[]) {
       return liveMode( order, opts );
     }
     if ( opts["live-prob"] ) {
-      return liveProbMode( order, opts );
+      return zmqLiveMode( order, opts );
     }
 
     // Build language model.
