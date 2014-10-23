@@ -195,7 +195,7 @@ void doCrossEntropy(LMState &st, char* data, size_t size) {
   vector<char *> Zords;
   PerplexityOptimizer perpEval(st.lm, st.order);
 
-  Logger::Log(0, "Input:%s\n", data);
+  Logger::Log(2, "Input:%s\n", data);
   Zords.push_back(data);
   std::unique_ptr< ZFile> zfile(new FakeZFile(Zords));
 
@@ -205,7 +205,7 @@ void doCrossEntropy(LMState &st, char* data, size_t size) {
 #else
   p = perpEval.ShortCorpusComputeEntropy(*zfile, st.params);
 #endif
-  Logger::Log(0, "Live Entropy %lf\n", p);
+  Logger::Log(2, "Live Entropy %lf\n", p);
 
   zmq::message_t response(25);
   snprintf((char*)(response.data()), 26, "%.25lf", p);
@@ -214,26 +214,25 @@ void doCrossEntropy(LMState &st, char* data, size_t size) {
 }
 
 void doPrediction(LMState &st, char *input, size_t size) {
-  Logger::Log(0, "Live Guess Input: %s\n", input);
+  Logger::Log(2, "Live Guess Input: %s\n", input);
 
   /* Fun fact! The prediction arugment is ignored, so I'm passing an arbitrary
    * magic constant! */
   std::auto_ptr<std::vector<LiveGuessResult> > results =
     st.eval.Predict(input, 10);
 
-  Logger::Log(0, "Live Guess Predict Called\n");
   int n = results->size();
-  Logger::Log(0, "Number of prediction results: %d\n", n);
-  Logger::Log(0, "Live Guess Rankings\n");
+  Logger::Log(2, "Number of prediction results: %d\n", n);
+  Logger::Log(2, "Live Guess Rankings\n");
 
   /* Concatenate all results to this buffer. */
   std::stringstream output;
 
   /* Output all predictions, woo! */
   for (int i = 0; i < n; i++) {
-    Logger::Log(0, "Starting rank %d\n", i);
+    Logger::Log(2, "Starting rank %d\n", i);
     LiveGuessResult res = (*results)[i];
-    Logger::Log(0, "\t%f\t%s\n", res.probability, res.str);
+    Logger::Log(2, "\t%f\t%s\n", res.probability, res.str);
     output << res.probability << '\t' << res.str << '\n';
 
     delete[] res.str;
@@ -249,7 +248,7 @@ void doPrediction(LMState &st, char *input, size_t size) {
    * leaving it. */
   fflush(stdout);
 
-  Logger::Log(0, "Live Guess Rankings Done\n");
+  Logger::Log(2, "Live Guess Rankings Done\n");
   fflush(stdout);
 }
 
@@ -278,7 +277,7 @@ void delegateOnRequest(LMState &st) {
         doCrossEntropy(st, data, size);
         break;
       default:
-        Logger::Error(0, "ZMQ: Unknown request `%c`!\n", mode);
+        Logger::Error(0, "ZMQ Live Mode: Unknown request `%c`!\n", mode);
         abort();
         break;
     }
@@ -344,19 +343,19 @@ int zmqLiveMode(int order,  CommandOptions & opts) {
   lm.Initialize(opts["vocab"], AsBoolean(opts["unk"]), 
                 opts["text"], opts["counts"], 
                 opts["smoothing"], opts["weight-features"]);
-  Logger::Log(0, "Parameters:\n");
+  Logger::Log(1, "Parameters:\n");
 
   LiveGuess eval(lm, order);
   ParamVector params(lm.defParams());
   assert(lm.Estimate(params));
   fflush(stdout);
 
-  Logger::Log(0, "Starting ZMQ\n");
+  Logger::Log(1, "Starting ZMQ\n");
   zmq::context_t ctx (1);
   zmq::socket_t s (ctx, ZMQ_REP);
   s.bind(opts["live-prob"]);
 
-  Logger::Log(0, "Live Mode Ready\n");
+  Logger::Log(1, "Live Mode Ready\n");
 
   /* Bundle all the state around in a big ugly struct. */
   LMState st(lm, s, order, params, eval);
