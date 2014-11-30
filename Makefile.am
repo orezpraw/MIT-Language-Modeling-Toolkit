@@ -15,7 +15,7 @@ EXTRA_DIST = autogen.sh \
 	debian/rules
 
 
-INCLUDES = \
+AM_CPPFLAGS = \
 -Isrc
 
 # Enable building files in subdirectories.
@@ -28,7 +28,7 @@ mitlmoptimizeincdir = $(includedir)/mitlm/optimize
 mitlmutilincdir = $(includedir)/mitlm/util
 mitlmvectorincdir = $(includedir)/mitlm/vector
 
-CXXFLAGS = -std=c++11
+AM_CXXFLAGS = -std=c++11
 
 mitlmoptimizeinc_HEADERS= \
 	src/optimize/Optimization.h \

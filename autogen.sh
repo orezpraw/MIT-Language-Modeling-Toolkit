@@ -102,10 +102,13 @@ xlc )
 esac
 
 # Use glibtoolize on OS X.
-LIBTOOLIZE=libtoolize
-if [ "`uname` = Darwin" -a "`hash $LIBTOOLIZE` -ne 0" ]; then
+if hash libtoolize; then
+  LIBTOOLIZE=libtoolize
+else
   LIBTOOLIZE=glibtoolize
 fi
+
+hash $LIBTOOLIZE || exit 1
 
 for coin in `find $srcdir -name configure.ac -print`
 do 
