@@ -128,6 +128,9 @@ PerplexityOptimizer::ShortCorpusComputeEntropy(ZFile &corpusFile, const ParamVec
             }
         }
     }
+    if ((_numWords - _numZeroProbs) < 1) {
+        return 70;
+    }
     double entropy = -_totLogProb / (_numWords - _numZeroProbs);
 //     std::cerr << -_totLogProb << "\t" << _numWords << "\t" << _numZeroProbs << std::endl;
     if (Logger::GetVerbosity() > 2)
