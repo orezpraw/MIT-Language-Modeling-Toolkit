@@ -81,7 +81,7 @@ public:
 	}
         ReOpen();
     }
-    ~ZFile() { if (_file) fclose(_file); }
+    virtual ~ZFile() { if (_file) fclose(_file); }
     
     virtual void ReOpen() {
         const char *mode = _mode.c_str();

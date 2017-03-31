@@ -246,7 +246,8 @@ void sortLiveGuesses( std::vector<LiveGuessResult> & v ) {
   sort (v.begin(), v.end(), mySortLiveGuessFunction); 
 }
 
-std::auto_ptr< std::vector<LiveGuessResult> > LiveGuess::Predict( char * str, int predictions) {
+std::auto_ptr< std::vector<LiveGuessResult> > LiveGuess::Predict(
+  const char * str, int predictions) {
   vector<const char *> words(0);
   int len = strlen(str) + 1;
   char strSpace[len];

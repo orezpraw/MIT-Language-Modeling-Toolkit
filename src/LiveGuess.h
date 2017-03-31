@@ -105,7 +105,7 @@ class LiveGuess {
  LiveGuess(NgramLM &lm, size_t order=3)
    : _lm(lm), _order(order) { };
   
-  std::auto_ptr< std::vector<LiveGuessResult> > Predict( char * str, int predictions );
+  std::auto_ptr< std::vector<LiveGuessResult> > Predict(const char * str, int predictions );
   double OneProbability( char * str);
   
 };
