@@ -12,8 +12,8 @@ class CrossFolder {
   int folds;
   int currentFold;
   std::vector<char *> lines;
-  std::vector<char *> testset;
-  std::vector<char *> trainingset;
+  std::vector<const char *> testset;
+  std::vector<const char *> trainingset;
   int * indices;
   char * filename;
  public:

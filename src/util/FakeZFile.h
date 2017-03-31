@@ -56,15 +56,16 @@ class FakeZFile : public ZFile {
   /* don't call this */
   // FILE *processOpen(const std::string &command, const char *mode) { }
 
-  vector< char *> buffer;
+  vector<const char *> & buffer;
   int index;
 
  public:
 
   // It will not FREE the char*s
-  FakeZFile(vector<char*> & bbuffer){ 
-    buffer = bbuffer;
-    index = 0;
+  FakeZFile(vector<const char*> & bbuffer) :
+    buffer(bbuffer),
+    index(0)
+  { 
     _file = NULL; // avoid closing it
   }
 

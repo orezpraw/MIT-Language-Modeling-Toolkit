@@ -192,7 +192,7 @@ struct LMState {
  */
 void doCrossEntropy(LMState &st, char* data, size_t size) {
   double p;
-  vector<char *> Zords;
+  vector<const char *> Zords;
   PerplexityOptimizer perpEval(st.lm, st.order);
 
   Logger::Log(2, "Input:%s\n", data);
