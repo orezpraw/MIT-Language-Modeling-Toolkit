@@ -70,6 +70,11 @@ PerplexityOptimizer::ShortCorpusComputeEntropy(ZFile &corpusFile, const ParamVec
     _totLogProb = 0.0;
     _numZeroProbs = 0;
     _numWords = 0;
+    double unkLogProb = 70.0;
+    size_t total_unigrams = sum(((NgramLM&)_lm).counts(1));
+    unkLogProb = log((double)(_lm.vocab().size()))-log((double)total_unigrams);
+//     std::cerr << _lm.vocab().size() << "\t" << total_unigrams << "\t" << unkLogProb << std::endl;
+//     exit(1);
     while (corpusFile.getLine( line, MAXLINE)) {
         if (strncmp(line, "<DOC ", 5) == 0 || strcmp(line, "</DOC>") == 0)
             continue;
@@ -90,7 +95,7 @@ PerplexityOptimizer::ShortCorpusComputeEntropy(ZFile &corpusFile, const ParamVec
 
         // Add each top order n-gram.
         size_t ngramOrder = std::min((size_t)2, size - 1);
-        for (size_t i = 1; i < words.size(); i++) {
+        for (size_t i = 0; i < words.size(); i++) {
             if (words[i] == Vocab::Invalid) {
                 // OOV word encountered.  Reset order to unigrams.
                 ngramOrder = 1;
@@ -128,16 +133,17 @@ PerplexityOptimizer::ShortCorpusComputeEntropy(ZFile &corpusFile, const ParamVec
             }
         }
     }
-    if ((_numWords - _numZeroProbs) < 1) {
-        return 70;
-    }
-    double entropy = -_totLogProb / (_numWords - _numZeroProbs);
 //     std::cerr << -_totLogProb << "\t" << _numWords << "\t" << _numZeroProbs << std::endl;
+    if ((_numWords - _numZeroProbs) < 1) {
+        return -unkLogProb;
+    }
+    _totLogProb += unkLogProb * _numZeroProbs;
+    double entropy = -_totLogProb;
     if (Logger::GetVerbosity() > 2)
         std::cout << exp(entropy) << "\t" << params << std::endl;
     else
         Logger::Log(2, "%f\n", exp(entropy));
-    return std::isnan(entropy) ? 70 : entropy;
+    return (std::isnan(entropy)||std::isinf(entropy)) ? 70 : entropy;
 }
 
 bool
