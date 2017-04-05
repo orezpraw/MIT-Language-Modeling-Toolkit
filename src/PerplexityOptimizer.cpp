@@ -69,10 +69,13 @@ PerplexityOptimizer::ShortCorpusComputeEntropy(ZFile &corpusFile, const ParamVec
     vector<VocabIndex> words(256);
     _totLogProb = 0.0;
     _numZeroProbs = 0;
-    _numWords = 0;
+    size_t numWords = 0;
+    size_t numZeroProbs = 0;
+    double lp;
     double unkLogProb = 70.0;
-    size_t total_unigrams = sum(((NgramLM&)_lm).counts(1));
-    unkLogProb = log((double)(_lm.vocab().size()))-log((double)total_unigrams);
+//     size_t total_unigrams = sum(((NgramLM&)_lm).counts(1));
+//      unkLogProb = log((double)(_lm.vocab().size()))-log((double)total_unigrams);
+//     unkLogProb = -log((double)(_lm.vocab().size()));
 //     std::cerr << _lm.vocab().size() << "\t" << total_unigrams << "\t" << unkLogProb << std::endl;
 //     exit(1);
     while (corpusFile.getLine( line, MAXLINE)) {
@@ -94,12 +97,13 @@ PerplexityOptimizer::ShortCorpusComputeEntropy(ZFile &corpusFile, const ParamVec
 //         words.push_back(Vocab::EndOfSentence);
 
         // Add each top order n-gram.
-        size_t ngramOrder = std::min((size_t)2, size - 1);
+        size_t ngramOrder = std::min((size_t)1, size - 1);
         for (size_t i = 0; i < words.size(); i++) {
             if (words[i] == Vocab::Invalid) {
                 // OOV word encountered.  Reset order to unigrams.
                 ngramOrder = 1;
                 numOOV++;
+                return 74e70;
             } else {
                 NgramIndex index;
                 size_t     boOrder = ngramOrder;
@@ -108,42 +112,73 @@ PerplexityOptimizer::ShortCorpusComputeEntropy(ZFile &corpusFile, const ParamVec
                     NgramIndex hist = _lm._pModel->_Find(&words[i - boOrder], boOrder);
                     if (hist != (NgramIndex)-1) {
                         if ((_lm.bows(boOrder))[hist] != 0) {
-//                         _bowCountVectors[boOrder][hist]++;
-                          _totLogProb += log((_lm.bows(boOrder))[hist]) * 1;
+//                           _bowCountVectors[boOrder][hist]++;
+                            lp = log((_lm.bows(boOrder))[hist]);
+                            _totLogProb += lp * 1;
+//                             std::cerr << hist
+//                               << "\t" << (_lm.bows(boOrder))[hist]
+//                               << "\tb "
+//                               << lp * 1 
+//                               << "\t" << boOrder 
+//                               << "\t" << i
+//                               << "\t" << i - boOrder
+//                               << "\n";
+                        } else {
+                          return 75e70;
                         }
                     }
                 }
                 ngramOrder = std::min(ngramOrder + 1, size - 1);
 //                 _probCountVectors[boOrder][index]++;
-                if ((_lm.probs(boOrder))[index] == 0) {
-                    _numZeroProbs++;
+                if ((_lm.probs(boOrder))[index] == 0 ) {
+                    numWords++;
+                    numZeroProbs++;
+                    return 77e70;
+                } else if (words[i] == Vocab::EndOfSentence) {
+                    (void)0;
                 } else {
-                    double lp = log((_lm.probs(boOrder))[index]) * 1;
-                    if (std::isnan(lp)) {
+                    lp = log((_lm.probs(boOrder))[index]) * 1;
+//                     std::cerr << index
+//                       << "\t" << (_lm.probs(boOrder))[index]
+//                       << "\t" << (((NgramLM&)_lm).counts(boOrder))[index]
+//                       << "\tp "
+//                       << lp * 1 
+//                       << "\t" << boOrder 
+//                       << "\t" << ngramOrder 
+//                       << "\n";
+                    if (!std::isfinite(lp)) {
                       std::cerr << lp << "\t" << (_lm.probs(boOrder))[index]  << "\t" << boOrder << "\t" << index << " " << (_lm.probs(boOrder)).length() << "\t" << ngramOrder << " " << size << std::endl;
-                      return 72;
+                      return 72e70;
                     }
                     _totLogProb += lp;
-                    if (std::isnan(_totLogProb)) {
-                      std::cerr << -_totLogProb << "\t" << _numWords << "\t" << _numZeroProbs << std::endl;
-                      return 71;
+                    if (!std::isfinite(_totLogProb)) {
+                      std::cerr << -_totLogProb << "\t" << numWords << "\t" << numZeroProbs << std::endl;
+                      return 71e70;
                     }
+                    numWords++;
                 }
-                _numWords++;
+//                 std::cerr << numWords << "\n\n";
             }
         }
     }
-//     std::cerr << -_totLogProb << "\t" << _numWords << "\t" << _numZeroProbs << std::endl;
-    if ((_numWords - _numZeroProbs) < 1) {
-        return -unkLogProb;
+    if ((numWords - numZeroProbs) < 1) {
+        return 76e70;
     }
-    _totLogProb += unkLogProb * _numZeroProbs;
+//     double entropy = -_totLogProb / (numWords - numZeroProbs);
     double entropy = -_totLogProb;
+//     std::cerr 
+//       << -_totLogProb 
+//       << "\t" << numWords 
+//       << "\t" << numZeroProbs 
+//       << std::endl;
+    if (!std::isfinite(entropy)) {
+        std::cerr << -_totLogProb << "\t" << numWords << "\t" << numZeroProbs << std::endl;
+    }
     if (Logger::GetVerbosity() > 2)
         std::cout << exp(entropy) << "\t" << params << std::endl;
     else
         Logger::Log(2, "%f\n", exp(entropy));
-    return (std::isnan(entropy)||std::isinf(entropy)) ? 70 : entropy;
+    return (std::isfinite(entropy)) ? entropy : 73e70;
 }
 
 bool

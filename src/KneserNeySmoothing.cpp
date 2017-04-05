@@ -56,28 +56,47 @@ void KneserNeySmoothing::Initialize(NgramLM *pLM, size_t order) {
         const IndexVector &hoBackoffs(_pLM->backoffs(_order + 1));
         // TODO: Need to implement operator[BitVector].
         //BinCount(hoBackoffs[hoCounts > 0], _effCounts);
-        for (size_t i = 0; i < hoCounts.length(); i++)
+        for (size_t i = 0; i < hoCounts.length(); i++) {
             if (hoCounts[i] > 0)
-                _effCounts[hoBackoffs[i]]++;
+                _effCounts[hoBackoffs[i]] += hoCounts[i];
+//                  _effCounts[hoBackoffs[i]]++;
+            if (_order == 4 && hoBackoffs[i] == 8) {
+//                 std::cerr << "hoboi=8\t" << hoCounts[i] <<std::endl;
+            }
+        }
 
         // Use original counts for n-grams without left context.
         // Ex. N-grams starting with <s>.
         _effCounts.masked(_effCounts == 0) = _pLM->counts(_order);
+//     if (_order == 4) std::cerr 
+//       << "\t" << _effCounts[8]
+//       << std::endl;
+//     if (_order == 4) std::cerr 
+//       << "\t" << _effCounts[9]
+//       << std::endl;
+//         std::cerr << _order << ":\t" << _effCounts << std::endl;
     } else {
         // Use original counts for highest order.
         _effCounts.attach(_pLM->counts(_order));
+//         std::cerr << _order << ":\t" << _effCounts << std::endl;
     }
 
     if (pLM->features(order).size() > 0) {
         // If weighting features specified, cannot pre-compute invHistCounts.
         _invHistCounts.reset(_pLM->sizes(order - 1));
         _ngramWeights.reset(_pLM->sizes(order));
+//         std::cerr << "X" << std::endl;
     } else {
         // Pre-compute inverse of sum of adjusted counts for each history.
         CountVector histCounts(_pLM->sizes(_order - 1), 0);
         BinWeight(_pLM->hists(_order), _effCounts, histCounts);
         _invHistCounts = CondExpr(histCounts == 0,
-                                  0, (Param)1 / asDouble(histCounts));
+                                  0, ((Param)1) / asDouble(histCounts));
+//         if (_order == 4) std::cerr << _order  << "Y " << histCounts[7] 
+//             << "\t" << (_pLM->hists(_order))[8]
+//             << "\t" << _effCounts[8] 
+//             << "\t" << _invHistCounts[7] 
+//             << std::endl;
     }
 
     // Estimate fixed Kneser-Ney discount factors from count stats.
@@ -203,15 +222,17 @@ KneserNeySmoothing::_Estimate(ProbVector &probs, ProbVector &bows) {
     const ProbVector & boProbs(_pLM->probs(_order - 1));
 
     // Compute discounts.
-    ProbVector &discounts(probs);  // Reuse probs vector for discounts.
+    ProbVector discounts(probs.length(), 0.0);  // Reuse probs vector for discounts.
     discounts = _discParams[min(_effCounts, _discOrder)];
 
     // Compute backoff weights.
     bows.set(0);
     BinWeight(hists, discounts, bows);
-    bows = CondExpr(_invHistCounts == 0, 1, bows * _invHistCounts);
-    assert(!anyTrue(isnan(_invHistCounts)));
-    assert(!anyTrue(isnan(bows)));
+//     if (_order == 4) std::cerr << bows[hists[8]] << std::endl;
+//     bows = CondExpr(_invHistCounts == 0, 1, bows * _invHistCounts);
+    bows = bows * _invHistCounts;
+    assert(allTrue(isfinite(_invHistCounts)));
+    assert(allTrue(isfinite(bows)));
     
     // Compute interpolated probabilities.
     if (_order == 1 && !_pLM->vocab().IsFixedVocab())
@@ -221,7 +242,25 @@ KneserNeySmoothing::_Estimate(ProbVector &probs, ProbVector &bows) {
     else
         probs = CondExpr(!_effCounts, 0,
                          (_effCounts - discounts) * _invHistCounts[hists])
-                + boProbs[backoffs] * bows[hists];
+                     + boProbs[backoffs] * bows[hists]
+        ;
+//     if (_order == 4) std::cerr << probs[8] 
+//       << "\t" << _effCounts[8]
+//       << "\t" << discounts[8]
+//       << "\t" << (1/_invHistCounts[hists[8]])
+//       << "\t" << backoffs[8]
+//       << "\t" << boProbs[backoffs[8]]
+//       << "\t" << bows[hists[8]]
+//       << std::endl;
+//     if (_order == 4) std::cerr << probs[9] 
+//       << "\t" << _effCounts[9]
+//       << "\t" << discounts[9]
+//       << "\t" << (1/_invHistCounts[hists[9]])
+//       << "\t" << backoffs[9]
+//       << "\t" << boProbs[backoffs[9]]
+//       << "\t" << bows[hists[9]]
+//       << std::endl;
+//     if (_order == 4) std::cerr << _discParams << std::endl;
     assert(!anyTrue(isnan(probs)));
 }
 

@@ -90,9 +90,6 @@ NgramModel::LoadCorpus(vector<CountVector> &countVectors,
     vector<VocabIndex> words(256);
     vector<NgramIndex> hists(size(), -1);
     while (corpusFile.getLine( line, MAXLINE)) {
-        if (strncmp(line, "<DOC ", 5) == 0 || strcmp(line, "</DOC>") == 0)
-            continue;
-
         // Lookup vocabulary indices for each word in the line.
         words.clear();
         words.push_back(Vocab::EndOfSentence);
