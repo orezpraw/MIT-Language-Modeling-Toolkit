@@ -37,8 +37,10 @@
 #include "NgramLM.h"
 #include "Mask.h"
 #include "KneserNeySmoothing.h"
+#include <cmath>
 
 using std::min;
+using std::isnan;
 
 ///////////////////////////////////////////////////////////////////////////////
 
