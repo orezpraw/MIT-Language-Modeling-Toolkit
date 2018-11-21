@@ -36,31 +36,6 @@ dnl Checks for compiler characteristics.
 AC_C_INLINE
 AM_PROG_CC_C_O
 
-# libzmq integration
-AC_ARG_WITH([libzmq],
-            [AS_HELP_STRING([--with-libzmq],
-                            [Specify libzmq prefix])],
-            [search_libzmq="yes"],
-            [])
-
-if test "x$search_libzmq" = "xyes"; then
-    if test -r "${with_libzmq}/include/zmq.h"; then
-        CFLAGS="-I${with_libzmq}/include ${CFLAGS}"
-        LDFLAGS="-L${with_libzmq}/lib ${LDFLAGS}"
-    else
-        AC_MSG_ERROR([${with_libzmq}/include/zmq.h not found. Please check libzmq prefix])
-    fi
-fi
-
-AC_CHECK_LIB(zmq, zmq_init, ,[AC_MSG_ERROR([cannot link with -lzmq, install libzmq.])])
-
-AC_MSG_CHECKING([whether libzmq installation works])
-AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <zmq.h>],
-                                [zmq_init(1);])
-               ],
-               [AC_MSG_RESULT([yes])],
-               [AC_MSG_ERROR([no. Please specify libzmq installation prefix using --with-libzmq])])
-
 dnl Checks for library functions.
 AC_FUNC_MEMCMP
 AC_FUNC_MALLOC

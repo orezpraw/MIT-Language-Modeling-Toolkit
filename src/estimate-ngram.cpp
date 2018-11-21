@@ -77,7 +77,9 @@
 #include "CrossFolder.h"
 #include "LiveGuess.h"
 
+#ifdef HAVE_LIBZMQ
 #include <zmq.hpp>
+#endif // HAVE_LIBZMQ
 
 #define BUFFERSIZE 4096
 
@@ -170,6 +172,7 @@ int evaluatePerplexityWithCrossFolds(int order, int folds, int repeats, CommandO
 #define REQ_CROSS_ENTROPY   'x'
 #define REQ_PREDICTION      'p'
 
+#ifdef HAVE_LIBZMQ
 /* Glues together a bunch of stuff for live mode. */
 struct LMState {
   NgramLM &lm;
@@ -186,7 +189,6 @@ struct LMState {
     lm(inLm), s(inS), order(inOrder), params(inParams), eval(inLg) {}
 };
   
-
 /*
  * Hacky extraction of live mode components.
  */
@@ -285,6 +287,7 @@ void delegateOnRequest(LMState &st) {
     delete[] data;
 }
 
+#endif // HAVE_LIBZMQ
 
 int liveMode(int order,  CommandOptions & opts) {
   vector<double> perps;  
@@ -326,6 +329,7 @@ int liveMode(int order,  CommandOptions & opts) {
   return 0;
 }
 
+#ifdef HAVE_LIBZMQ
 
 int zmqLiveMode(int order,  CommandOptions & opts) {
   /* I think this is a hack so that the server doesn't spontaneously die on
@@ -365,7 +369,7 @@ int zmqLiveMode(int order,  CommandOptions & opts) {
 
   return 0;
 }
-
+#endif /* HAVE_LIBZMQ */
 
 int main(int argc, char* argv[]) {
     // Parse command line options.
@@ -441,7 +445,12 @@ int main(int argc, char* argv[]) {
       return liveMode( order, opts );
     }
     if ( opts["live-prob"] ) {
+#ifdef HAVE_LIBZMQ
       return zmqLiveMode( order, opts );
+#else // HAVE_LIBZMQ
+      Logger::Error(1, "No ZMQ support!\n");
+      return 1;
+#endif // HAVE_LIBZMQ
     }
 
     // Build language model.
